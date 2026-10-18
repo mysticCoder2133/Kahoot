@@ -120,7 +120,18 @@ if (typeof client.on === 'function') {
     client.on('question', (question) => {
       // handle similarly if needed
     });
+    
+    client.on('Disconnect', (reason) => {
+      console.log('🔌 Disconnected from Kahoot:', reason);
+    });
 
+    const adjectives = ['Happy', 'Clever', 'Brave', 'Sunny', 'Quiet', 'Swift', 'Calm', 'Bright'];
+    const nouns = ['Bear', 'Lion', 'Fox', 'Owl', 'Wolf', 'Hawk', 'Deer', 'Seal'];
+    const botName = adjectives[Math.floor(Math.random() * adjectives.length)] +
+                    nouns[Math.floor(Math.random() * nouns.length)];
+
+    client.join(pin, botName);
+    
     // If the host only shows one question and ends, we still need to capture it
     // The quiz_end handler will fire.
   });
