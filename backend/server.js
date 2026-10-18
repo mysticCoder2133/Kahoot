@@ -7,14 +7,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// In-memory cache for recent sessions (optional)
 const sessionCache = new Map();
 
 app.get('/api/answers', async (req, res) => {
   const pin = req.query.pin;
   if (!pin) return res.status(400).json({ error: 'Missing Game PIN' });
 
-  // If we already scraped this PIN in the last 10 minutes, return cached
   if (sessionCache.has(pin)) {
     const cached = sessionCache.get(pin);
     if (Date.now() - cached.timestamp < 600_000) {
@@ -38,55 +36,53 @@ function scrapeKahoot(pin) {
     const questions = [];
     let resolved = false;
 
-    // Timeout if no questions arrive within 60s
     const timeout = setTimeout(() => {
       if (!resolved) {
         resolved = true;
-        client.leave();
+        try { client.leave(); } catch (e) {}
         reject(new Error('Timeout: no questions received. Is the PIN active?'));
       }
     }, 90_000);
 
-    client.join(pin, `Alex${Math.floor(Math.random() * 900 + 100)}`);
+    const adjectives = ['Happy', 'Clever', 'Brave', 'Sunny', 'Quiet', 'Swift', 'Calm', 'Bright'];
+    const nouns = ['Bear', 'Lion', 'Fox', 'Owl', 'Wolf', 'Hawk', 'Deer', 'Seal'];
+    const botName = adjectives[Math.floor(Math.random() * adjectives.length)] +
+                    nouns[Math.floor(Math.random() * nouns.length)];
 
-client.on('Joined', () => {
-  console.log(`✅ Joined game ${pin} successfully.`);
-});
+    // Single join call. No duplicates.
+    client.join(pin, botName)
+      .then((joinResult) => {
+        console.log('✅ Join call resolved. Raw result:', JSON.stringify(joinResult, null, 2));
+        if (joinResult && joinResult.twoFactor) {
+          console.log('🔐 Two-factor challenge REQUIRED. Bot is stuck at the checkpoint.');
+        }
+      })
+      .catch((err) => {
+        console.error('❌ Join rejected:', err && err.message ? err.message : err);
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          reject(new Error(`Join failed: ${err && err.message ? err.message : err}`));
+        }
+      });
 
-client.on('QuestionStart', (question) => {
-  console.log('📥 QuestionStart fired:', question.question);
-  questions.push({
-    question: question.question,
-    answers: question.answers,
-    correct: question.correctAnswers,
-    type: question.type
-  });
-});
+    client.on('Joined', () => {
+      console.log(`✅ Joined game ${pin} as "${botName}".`);
+    });
 
-client.on('QuizEnd', () => {
-  clearTimeout(timeout);
-  if (!resolved) {
-    resolved = true;
-    client.leave();
-    resolve({ pin, questions });
-  }
-});
+    client.on('QuizStart', () => {
+      console.log('🏁 QuizStart fired — host launched the quiz.');
+    });
 
-// Optional: if the library emits an error event, catch it here.
-// If not, the timeout remains your safety net.
-if (typeof client.on === 'function') {
-  client.on('error', (err) => {
-    clearTimeout(timeout);
-    if (!resolved) {
-      resolved = true;
-      reject(new Error(`Join failed: ${err.message || err}`));
-    }
-  });
-}
-    
-    client.on('question', (question) => {
-      console.log('📥 Received question data via "question" event:', question.question);
-      if (!questions.some(q => q.question === question.question)) {
+    client.on('QuestionReady', (data) => {
+      console.log('👀 QuestionReady fired:', JSON.stringify(data));
+    });
+
+    client.on('QuestionStart', (question) => {
+      console.log('📥 QuestionStart fired. Keys:', Object.keys(question || {}));
+      console.log('   Raw question object:', JSON.stringify(question, null, 2));
+
+      if (question && question.question && !questions.some(q => q.question === question.question)) {
         questions.push({
           question: question.question,
           answers: question.answers,
@@ -95,45 +91,23 @@ if (typeof client.on === 'function') {
         });
       }
     });
-    
-    client.on('questionStart', (question) => {
-      // kahoot.js-updated exposes question object with .answers, .correctAnswers etc.
-      const answerData = {
-        question: question.question,
-        answers: question.answers,
-        correct: question.correctAnswers, // array of indices or labels
-        type: question.type
-      };
-      questions.push(answerData);
-    });
 
-    client.on('quiz_end', () => {
+    client.on('QuizEnd', () => {
       clearTimeout(timeout);
       if (!resolved) {
         resolved = true;
-        client.leave();
+        try { client.leave(); } catch (e) {}
         resolve({ pin, questions });
       }
     });
 
-    // Some versions emit 'question' instead of 'question_start'
-    client.on('question', (question) => {
-      // handle similarly if needed
-    });
-    
     client.on('Disconnect', (reason) => {
       console.log('🔌 Disconnected from Kahoot:', reason);
     });
 
-    const adjectives = ['Happy', 'Clever', 'Brave', 'Sunny', 'Quiet', 'Swift', 'Calm', 'Bright'];
-    const nouns = ['Bear', 'Lion', 'Fox', 'Owl', 'Wolf', 'Hawk', 'Deer', 'Seal'];
-    const botName = adjectives[Math.floor(Math.random() * adjectives.length)] +
-                    nouns[Math.floor(Math.random() * nouns.length)];
-
-    client.join(pin, botName);
-    
-    // If the host only shows one question and ends, we still need to capture it
-    // The quiz_end handler will fire.
+    client.on('error', (err) => {
+      console.error('⚠️ Client error:', err && err.message ? err.message : err);
+    });
   });
 }
 
