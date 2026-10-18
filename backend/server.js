@@ -58,8 +58,19 @@ function scrapeKahoot(pin) {
           reject(new Error(`Join failed: ${err.message}`));
         }
       });
-
-    client.on('question_start', (question) => {
+    
+    client.on('question', (question) => {
+      if (!questions.some(q => q.question === question.question)) {
+        questions.push({
+          question: question.question,
+          answers: question.answers,
+          correct: question.correctAnswers,
+          type: question.type
+        });
+      }
+    });
+    
+    client.on('questionStart', (question) => {
       // kahoot.js-updated exposes question object with .answers, .correctAnswers etc.
       const answerData = {
         question: question.question,
