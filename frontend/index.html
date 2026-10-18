@@ -42,6 +42,12 @@
     }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
     #results { margin-top: 2.5rem; }
+    .quiz-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin-bottom: 1.5rem;
+    }
     .question-block {
       border-left: 2px solid var(--accent);
       padding-left: 1rem;
@@ -61,7 +67,7 @@
 </head>
 <body>
   <h1>Kahoot Answer Finder</h1>
-  <p class="sub">Enter a live Game PIN. I’ll join quietly and pull the answers.</p>
+  <p class="sub">Paste the Quiz ID from the teacher's URL bar. No PIN, no waiting.</p>
 
   <div>
     <input id="pin" type="text" placeholder="Quiz ID (UUID)" style="width: 280px;" />
@@ -77,17 +83,17 @@
     const resultsEl = document.getElementById('results');
 
     goBtn.addEventListener('click', async () => {
-      const pin = pinInput.value.trim();
-      if (!pin) return;
+      const quizId = pinInput.value.trim();
+      if (!quizId) return;
       goBtn.disabled = true;
-      statusEl.textContent = 'Joining game and listening for questions…';
+      statusEl.textContent = 'Fetching quiz data…';
       resultsEl.innerHTML = '';
 
       try {
-        const res = await fetch(`https://kahoot-qnny.onrender.com/api/answers?quizId=${encodeURIComponent(pin)}`);
+        const res = await fetch(`https://kahoot-qnny.onrender.com/api/answers?quizId=${encodeURIComponent(quizId)}`);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
-        renderAnswers(data.questions);
+        renderAnswers(data);
         statusEl.textContent = `Got ${data.questions.length} question(s).`;
       } catch (err) {
         statusEl.textContent = `Error: ${err.message}`;
@@ -96,13 +102,17 @@
       }
     });
 
-    function renderAnswers(questions) {
-      resultsEl.innerHTML = questions.map((q, i) => `
+    function renderAnswers(data) {
+      const titleBlock = data.title
+        ? `<div class="quiz-title">${escapeHtml(data.title)}</div>`
+        : '';
+
+      const blocks = data.questions.map((q, i) => `
         <div class="question-block">
           <div class="q-text">${i + 1}. ${escapeHtml(q.question)}</div>
           <ul class="answer-list">
-            ${q.answers.map((ans, idx) => {
-              const isCorrect = q.correct.includes(idx) || q.correct.includes(ans);
+            ${q.answers.map((ans) => {
+              const isCorrect = ans === q.correct;
               return `<li class="${isCorrect ? 'correct' : 'wrong'}">
                 ${isCorrect ? '✓' : '✗'} ${escapeHtml(ans)}
               </li>`;
@@ -110,6 +120,8 @@
           </ul>
         </div>
       `).join('');
+
+      resultsEl.innerHTML = titleBlock + blocks;
     }
 
     function escapeHtml(str) {
