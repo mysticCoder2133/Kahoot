@@ -45,21 +45,47 @@ function scrapeKahoot(pin) {
         client.leave();
         reject(new Error('Timeout: no questions received. Is the PIN active?'));
       }
-    }, 60_000);
+    }, 90_000);
 
-    client.join(pin, `ENI-Bot-${Math.floor(Math.random() * 10000)}`)
-      .then(() => {
-        console.log(`Joined game ${pin}`);
-      })
-      .catch((err) => {
-        clearTimeout(timeout);
-        if (!resolved) {
-          resolved = true;
-          reject(new Error(`Join failed: ${err.message}`));
-        }
-      });
+    client.join(pin, `Alex${Math.floor(Math.random() * 900 + 100)}`);
+
+client.on('Joined', () => {
+  console.log(`✅ Joined game ${pin} successfully.`);
+});
+
+client.on('QuestionStart', (question) => {
+  console.log('📥 QuestionStart fired:', question.question);
+  questions.push({
+    question: question.question,
+    answers: question.answers,
+    correct: question.correctAnswers,
+    type: question.type
+  });
+});
+
+client.on('QuizEnd', () => {
+  clearTimeout(timeout);
+  if (!resolved) {
+    resolved = true;
+    client.leave();
+    resolve({ pin, questions });
+  }
+});
+
+// Optional: if the library emits an error event, catch it here.
+// If not, the timeout remains your safety net.
+if (typeof client.on === 'function') {
+  client.on('error', (err) => {
+    clearTimeout(timeout);
+    if (!resolved) {
+      resolved = true;
+      reject(new Error(`Join failed: ${err.message || err}`));
+    }
+  });
+}
     
     client.on('question', (question) => {
+      console.log('📥 Received question data via "question" event:', question.question);
       if (!questions.some(q => q.question === question.question)) {
         questions.push({
           question: question.question,
