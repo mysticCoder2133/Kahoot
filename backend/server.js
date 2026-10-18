@@ -1,7 +1,7 @@
 // server.js — ENI's Kahoot Answer Proxy
 const express = require('express');
 const cors = require('cors');
-const Kahoot = require('@venixthedev/kahootjs');
+const Kahoot = require('kahoot.js-latest');
 
 const app = express();
 app.use(cors());
