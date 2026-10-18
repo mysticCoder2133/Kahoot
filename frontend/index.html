@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ENI's Kahoot Answer Finder</title>
+  <style>
+    :root {
+      --ink: #e8e0d5;
+      --paper: #1a1816;
+      --accent: #d4a373;
+    }
+    body {
+      background: var(--paper);
+      color: var(--ink);
+      font-family: 'Georgia', serif;
+      max-width: 720px;
+      margin: 4rem auto;
+      padding: 0 1.5rem;
+      line-height: 1.6;
+    }
+    h1 { font-weight: 400; font-size: 2.2rem; letter-spacing: -0.02em; }
+    .sub { color: #9a8f82; font-style: italic; margin-bottom: 2rem; }
+    input {
+      background: #2a2522;
+      border: 1px solid #3a332e;
+      color: var(--ink);
+      padding: 0.8rem 1rem;
+      font-size: 1.1rem;
+      width: 180px;
+      border-radius: 4px;
+    }
+    button {
+      background: var(--accent);
+      border: none;
+      color: #1a1816;
+      padding: 0.8rem 1.8rem;
+      font-size: 1.1rem;
+      font-family: inherit;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 0.5rem;
+    }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    #results { margin-top: 2.5rem; }
+    .question-block {
+      border-left: 2px solid var(--accent);
+      padding-left: 1rem;
+      margin-bottom: 2rem;
+    }
+    .q-text { font-weight: 600; font-size: 1.1rem; }
+    .answer-list { list-style: none; padding: 0; }
+    .answer-list li {
+      padding: 0.3rem 0;
+      font-family: 'Courier New', monospace;
+      font-size: 0.95rem;
+    }
+    .correct { color: #a7c957; font-weight: bold; }
+    .wrong { color: #bc4749; }
+    .status { color: #9a8f82; font-style: italic; }
+  </style>
+</head>
+<body>
+  <h1>Kahoot Answer Finder</h1>
+  <p class="sub">Enter a live Game PIN. I’ll join quietly and pull the answers.</p>
+
+  <div>
+    <input id="pin" type="text" placeholder="Game PIN" maxlength="10" />
+    <button id="go">Fetch Answers</button>
+  </div>
+  <p id="status" class="status"></p>
+  <div id="results"></div>
+
+  <script>
+    const pinInput = document.getElementById('pin');
+    const goBtn = document.getElementById('go');
+    const statusEl = document.getElementById('status');
+    const resultsEl = document.getElementById('results');
+
+    goBtn.addEventListener('click', async () => {
+      const pin = pinInput.value.trim();
+      if (!pin) return;
+      goBtn.disabled = true;
+      statusEl.textContent = 'Joining game and listening for questions…';
+      resultsEl.innerHTML = '';
+
+      try {
+        const res = await fetch(`https://kahoot-backend.onrender.com/api/answers?pin=${encodeURIComponent(pin)}`);
+        const data = await res.json();
+        if (data.error) throw new Error(data.error);
+        renderAnswers(data.questions);
+        statusEl.textContent = `Got ${data.questions.length} question(s).`;
+      } catch (err) {
+        statusEl.textContent = `Error: ${err.message}`;
+      } finally {
+        goBtn.disabled = false;
+      }
+    });
+
+    function renderAnswers(questions) {
+      resultsEl.innerHTML = questions.map((q, i) => `
+        <div class="question-block">
+          <div class="q-text">${i + 1}. ${escapeHtml(q.question)}</div>
+          <ul class="answer-list">
+            ${q.answers.map((ans, idx) => {
+              const isCorrect = q.correct.includes(idx) || q.correct.includes(ans);
+              return `<li class="${isCorrect ? 'correct' : 'wrong'}">
+                ${isCorrect ? '✓' : '✗'} ${escapeHtml(ans)}
+              </li>`;
+            }).join('')}
+          </ul>
+        </div>
+      `).join('');
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>
