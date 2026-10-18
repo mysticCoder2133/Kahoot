@@ -84,7 +84,7 @@
       resultsEl.innerHTML = '';
 
       try {
-        const res = await fetch(`https://kahoot-qnny.onrender.com/api/answers?pin=${encodeURIComponent(pin)}`);
+        const res = await fetch(`https://kahoot-qnny.onrender.com/api/answers?quizId=${encodeURIComponent(pin)}`);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         renderAnswers(data.questions);
